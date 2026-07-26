@@ -1,6 +1,6 @@
 # Quant Stock Screener — Stoxx Europe 600
 
-🔗 **App en vivo**: https://tu-url-aqui.streamlit.app
+🔗 **App en vivo**: https://quant-proyect-r9vs32bsy287xrcqy9tpvq.streamlit.app
 *(sustituye por la URL real que te dio Streamlit Community Cloud)*
 
 ## Qué es esto
@@ -93,7 +93,7 @@ datos con fuentes gratuitas.*
 
 # Quant Stock Screener — Stoxx Europe 600
 
-🔗 **Live app**: https://your-url-here.streamlit.app
+🔗 **Live app**: https://quant-proyect-r9vs32bsy287xrcqy9tpvq.streamlit.app
 *(replace with the real URL Streamlit Community Cloud gave you)*
 
 ## What this is
