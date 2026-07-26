@@ -65,9 +65,9 @@ proporcional a cuántos datos les faltan, en vez de ser excluidas o tratadas com
   británicos).
 
 ## Estructura del repositorio
--  **app.py** # App de Streamlit
--  **requirements.txt # Dependencias**
--  **factores_score_stoxx600.csv # Dataset final: factores, z-scores y score**
+-  **app.py** App de Streamlit
+-  **requirements.txt** Dependencias
+-  **factores_score_stoxx600.csv** Dataset final: factores, z-scores y score
 -  **README.md**
 
 ## Cómo ejecutarlo en local
@@ -90,3 +90,98 @@ streamlit run app.py
 *Proyecto desarrollado como parte de un plan de aprendizaje autodirigido en quant
 finance, combinando Python, estadística aplicada y buenas prácticas de ingeniería de
 datos con fuentes gratuitas.*
+
+# Quant Stock Screener — Stoxx Europe 600
+
+🔗 **Live app**: https://your-url-here.streamlit.app
+*(replace with the real URL Streamlit Community Cloud gave you)*
+
+## What this is
+
+A tool that ranks the 600 companies in the **Stoxx Europe 600** index by combining
+fundamental and technical factors into a composite score, statistically validated and
+compared against a machine learning model (logistic regression with train/test split).
+
+This is not investment advice — it's a data engineering and quantitative analysis
+project applied to financial markets, built to demonstrate the full cycle: real data
+acquisition, cleaning, methodological design, validation, and deployment.
+
+## Tech stack
+
+`Python` · `pandas` · `yfinance` · `scikit-learn` · `Streamlit` · `Google Colab` (development) · `Streamlit Community Cloud` (deploy)
+
+## Methodology
+
+### 1. Universe
+600 companies from the Stoxx Europe 600, sourced from the public holdings of the
+iShares STOXX Europe 600 UCITS ETF, with tickers mapped to Yahoo Finance format
+according to their listing exchange (Xetra, Euronext, LSE, SIX, Nasdaq Nordic, etc.).
+
+### 2. Factors (9 total)
+- **Fundamental**: P/E, ROE, debt/equity, revenue growth
+- **Technical**: 3/6/12-month momentum, RSI, distance to SMA200
+
+All factors are normalized via **z-score** within the universe, with **winsorizing**
+applied (capped at ±3 standard deviations) to prevent extreme outliers from
+dominating the score.
+
+### 3. Composite score
+Weighted average of the 9 factors (with P/E and debt inverted, since "lower" is
+better for both). Companies with missing factors receive a small penalty
+proportional to how much data is missing, rather than being excluded or treated
+as neutral.
+
+### 4. Validation
+- **Quintile analysis**: the universe is split into 5 groups by score and their
+  average 12-month return is compared. Result: monotonic progression from -12.3%
+  (worst quintile) to +63.9% (best quintile).
+- **Logit model**: logistic regression on fundamental factors, with a train/test
+  split (75/25), predicting whether a company beat the median return.
+  Test accuracy: 56.3% (baseline: 50%).
+
+## Limitations (acknowledged and documented, not hidden)
+
+- **Circularity in quintile validation**: `momentum_12m` is itself one of the
+  score's factors, so this validation confirms internal consistency rather than
+  genuine out-of-sample predictive power. A true walk-forward backtest would
+  require historical point-in-time fundamental and technical data, unavailable
+  through free sources.
+- **Data coverage**: ~90 companies (15%) lack a usable P/E, mainly because Yahoo
+  Finance omits the field when a company has no positive net income, rather than
+  reporting a negative value.
+- **Financial sector**: banks and insurers typically lack a debt/equity ratio
+  comparable to other sectors, due to the nature of their balance sheets.
+- **Momentum bias**: as currently weighted, the score favors companies with
+  strong price trends even when their valuation is expensive — it is not a pure
+  "value" score.
+- **~9% of the universe** (54 companies) ended up with partially or fully
+  incomplete technical factors due to ticker format inconsistencies across data
+  providers (share class notation on Nordic exchanges, UK tickers with their own
+  built-in punctuation).
+
+## Repository structure
+-  **app.py** Streamlit app
+-  **requirements.txt** Dependencies
+-  **factores_score_stoxx600.csv** Final dataset: factors, z-scores, and score
+-  **README.md**
+
+## Running it locally
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+## Possible future improvements
+
+- Point-in-time fundamental data to enable a genuine walk-forward backtest
+- Expand the predictive model with additional algorithms (random forest, gradient boosting)
+- Schedule automatic data refreshes (e.g. weekly, via GitHub Actions)
+- Separate out a quality/profitability factor not solely dependent on P/E, to
+  reduce the momentum bias
+
+---
+
+*Project developed as part of a self-directed quant finance learning plan,
+combining Python, applied statistics, and data engineering best practices using
+free data sources.*
