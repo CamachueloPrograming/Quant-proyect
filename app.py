@@ -1,5 +1,8 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
+
+from analytics import build_quintile_returns
+from data_loader import load_data
 
 st.set_page_config(page_title="Stoxx 600 Screener", layout="wide", page_icon="📊")
 
@@ -13,12 +16,6 @@ with st.expander("Metodología"):
     )
 
 st.markdown("Vista interactiva del ranking de empresas por score ajustado.")
-
-
-@st.cache_data
-def load_data(path: str) -> pd.DataFrame:
-    return pd.read_csv(path)
-
 
 csv_path = "factores_score_stoxx600.csv"
 
@@ -72,19 +69,7 @@ filtered = filtered[filtered["score_ajustado"].between(selected_score[0], select
 filtered = filtered.sort_values(by="score_ajustado", ascending=False)
 
 if not filtered.empty:
-    filtered_for_metrics = filtered.copy()
-    filtered_for_metrics["quintil"] = pd.qcut(
-        filtered_for_metrics["score_ajustado"],
-        q=5,
-        labels=[1, 2, 3, 4, 5],
-        duplicates="drop",
-    )
-    quintil_summary = (
-        filtered_for_metrics.groupby("quintil", observed=True)["momentum_12m"]
-        .mean()
-        .reset_index()
-        .rename(columns={"momentum_12m": "retorno_medio_12m"})
-    )
+    quintil_summary = build_quintile_returns(filtered)
 
     best_row = filtered.iloc[0]
     best_name = (
@@ -135,21 +120,7 @@ else:
     st.info("No hay datos disponibles para mostrar la tabla.")
 
 if not filtered.empty and "momentum_12m" in filtered.columns:
-    quintil_labels = [1, 2, 3, 4, 5]
-    filtered_for_chart = filtered.copy()
-    filtered_for_chart["quintil"] = pd.qcut(
-        filtered_for_chart["score_ajustado"],
-        q=5,
-        labels=quintil_labels,
-        duplicates="drop",
-    )
-    quintil_summary = (
-        filtered_for_chart.groupby("quintil", observed=True)["momentum_12m"]
-        .mean()
-        .reset_index()
-        .rename(columns={"momentum_12m": "retorno_medio_12m"})
-    )
-
+    quintil_summary = build_quintile_returns(filtered)
     st.subheader("Retorno por quintil de score")
     st.bar_chart(
         quintil_summary.set_index("quintil")["retorno_medio_12m"],
