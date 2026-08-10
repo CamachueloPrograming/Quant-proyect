@@ -1,8 +1,212 @@
+import numpy as np
 import pandas as pd
 import streamlit as st
+from pathlib import Path
 
 from analytics import build_quintile_returns
 from data_loader import load_data
+
+try:
+    from scipy import stats
+except ImportError:
+    stats = None
+
+@st.cache_data
+def load_close_prices(path: str) -> pd.DataFrame:
+    raw = pd.read_csv(path, header=[0, 1], index_col=0, parse_dates=True)
+    close = raw.xs("Close", axis=1, level=1)
+    return close.sort_index()
+
+@st.cache_data
+def load_stoxx_index(path: str) -> pd.Series:
+    df = pd.read_csv(
+        path,
+        skiprows=2,
+        names=["Date", "Close", "High", "Low", "Open", "Volume"],
+        engine="python",
+    )
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df = df.dropna(subset=["Date"]).set_index("Date")
+    return df["Close"].sort_index()
+
+
+def compute_rsi(price_series: pd.Series, period: int = 14) -> pd.Series:
+    delta = price_series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(period, min_periods=period).mean()
+    avg_loss = loss.rolling(period, min_periods=period).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    return 100 - (100 / (1 + rs))
+
+
+def zscore_winsorize(s: pd.Series, cap: float = 3.0) -> pd.Series:
+    mu, sd = s.mean(), s.std()
+    if sd == 0 or np.isnan(sd):
+        return s * 0
+    return ((s - mu) / sd).clip(-cap, cap)
+
+
+def compute_factors_at_cutoff(df: pd.DataFrame, cutoff_pos: int, min_history: int = 252) -> pd.DataFrame:
+    window_raw = df.iloc[:cutoff_pos + 1]
+    window = window_raw.ffill()
+    last = window.iloc[-1]
+
+    def px_back(n: int) -> pd.Series:
+        if len(window) <= n:
+            return pd.Series(np.nan, index=window.columns)
+        return window.iloc[-1 - n]
+
+    mom_3m = last / px_back(63) - 1
+    mom_6m = last / px_back(126) - 1
+    mom_12m = last / px_back(252) - 1
+    sma200 = window.iloc[-200:].mean() if len(window) >= 200 else pd.Series(np.nan, index=window.columns)
+    dist_sma200 = last / sma200 - 1
+    rsi_last = window.apply(compute_rsi, period=14).iloc[-1]
+
+    factors = pd.DataFrame(
+        {
+            "mom_3m": mom_3m,
+            "mom_6m": mom_6m,
+            "mom_12m": mom_12m,
+            "rsi14": rsi_last,
+            "dist_sma200": dist_sma200,
+        }
+    )
+    valid_history = window_raw.notna().sum() >= min_history
+    factors = factors[valid_history].dropna(how="any")
+    return factors
+
+
+def get_annual_cutoffs(index: pd.DatetimeIndex, start_year: int = 2001, end_year: int = 2025) -> list[pd.Timestamp]:
+    cutoffs = []
+    for year in range(start_year, end_year + 1):
+        target = pd.Timestamp(f"{year}-01-01")
+        candidates = index[index >= target]
+        if len(candidates):
+            cutoffs.append(candidates[0])
+    return cutoffs
+
+
+def simulate_walkforward(
+    close: pd.DataFrame,
+    stoxx_index: pd.Series | None = None,
+    start_year: int = 2001,
+    end_year: int = 2025,
+    min_history: int = 252,
+    horizon: int = 252,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    idx = close.index
+    cutoffs = get_annual_cutoffs(idx, start_year, end_year)
+    results = []
+
+    for cutoff in cutoffs:
+        cpos = idx.get_loc(cutoff)
+        fpos = cpos + horizon
+        if fpos >= len(idx):
+            continue
+
+        factors = compute_factors_at_cutoff(close, cpos, min_history=min_history)
+        if len(factors) < 50:
+            continue
+
+        z = factors.apply(zscore_winsorize)
+        score = z.mean(axis=1)
+
+        p0 = close.iloc[: cpos + 1].ffill().iloc[-1][score.index]
+        p1 = close.iloc[: fpos + 1].ffill().iloc[-1][score.index]
+        fwd_ret = p1 / p0 - 1
+        valid = fwd_ret.notna() & p0.notna()
+        score, fwd_ret = score[valid], fwd_ret[valid]
+        if len(score) < 50:
+            continue
+
+        quintile = pd.qcut(score, 5, labels=[1, 2, 3, 4, 5], duplicates="drop")
+        q5_ret = fwd_ret[quintile == 5].mean()
+        q1_ret = fwd_ret[quintile == 1].mean()
+
+        results.append(
+            {
+                "cutoff": cutoff,
+                "fwd_date": idx[fpos],
+                "n_empresas": len(score),
+                "q1_ret": q1_ret,
+                "q5_ret": q5_ret,
+                "long_short": q5_ret - q1_ret,
+                "universo_ret_medio": fwd_ret.mean(),
+            }
+        )
+
+    df_res = pd.DataFrame(results)
+    if df_res.empty:
+        return df_res, pd.DataFrame(), {}
+
+    if stoxx_index is not None and not stoxx_index.empty:
+        def get_idx_price(date: pd.Timestamp) -> float:
+            if date < stoxx_index.index.min():
+                return np.nan
+            return stoxx_index.asof(date)
+
+        df_res["stoxx600_ret"] = [
+            get_idx_price(row["fwd_date"]) / get_idx_price(row["cutoff"]) - 1
+            for _, row in df_res.iterrows()
+        ]
+    else:
+        df_res["stoxx600_ret"] = np.nan
+
+    equity_estrategia = [100.0]
+    equity_bench = [100.0]
+    equity_long_short = [100.0]
+    for _, row in df_res.iterrows():
+        equity_estrategia.append(equity_estrategia[-1] * (1 + row["q5_ret"]))
+        equity_bench.append(equity_bench[-1] * (1 + row["universo_ret_medio"]))
+        equity_long_short.append(equity_long_short[-1] * (1 + row["long_short"]))
+
+    equity_stoxx600 = [np.nan] * (len(df_res) + 1)
+    primer_valido = df_res["stoxx600_ret"].first_valid_index()
+    if primer_valido is not None:
+        equity_stoxx600[primer_valido] = 100.0
+        for i in range(primer_valido, len(df_res)):
+            ret = df_res["stoxx600_ret"].iloc[i]
+            equity_stoxx600[i + 1] = equity_stoxx600[i] * (1 + ret) if pd.notna(ret) else equity_stoxx600[i]
+
+    fechas = [df_res["cutoff"].iloc[0] - pd.DateOffset(years=1)] + list(df_res["cutoff"])
+    curva = pd.DataFrame(
+        {
+            "fecha": fechas,
+            "estrategia_long_only_Q5": equity_estrategia,
+            "benchmark_universo_equalweight": equity_bench,
+            "benchmark_stoxx600_real": equity_stoxx600,
+            "experimento_long_short": equity_long_short,
+        }
+    )
+
+    n_years = len(df_res)
+    cagr_estrategia = (equity_estrategia[-1] / 100) ** (1 / n_years) - 1
+    cagr_bench = (equity_bench[-1] / 100) ** (1 / n_years) - 1
+    cagr_stoxx600 = (
+        (equity_stoxx600[-1] / 100) ** (1 / (len(df_res) - primer_valido)) - 1
+        if primer_valido is not None
+        else float("nan")
+    )
+
+    p_ls = None
+    if stats is not None and len(df_res) > 1:
+        _, p_ls = stats.ttest_1samp(df_res["long_short"].values, 0.0)
+
+    metrics = {
+        "cagr_estrategia": cagr_estrategia,
+        "cagr_bench": cagr_bench,
+        "cagr_stoxx600": cagr_stoxx600,
+        "capital_final_estrategia": equity_estrategia[-1],
+        "capital_final_bench": equity_bench[-1],
+        "capital_final_stoxx600": equity_stoxx600[-1] if primer_valido is not None else np.nan,
+        "capital_final_long_short": equity_long_short[-1],
+        "p_value_long_short": p_ls,
+        "cutoffs": len(df_res),
+    }
+
+    return df_res, curva, metrics
 
 st.set_page_config(page_title="Stoxx 600 Screener", layout="wide", page_icon="📊")
 
@@ -163,6 +367,112 @@ metricas_display = metricas_display.rename(columns={
 })
 
 st.dataframe(metricas_display, use_container_width=True, hide_index=True)
+
+st.markdown("---")
+st.subheader("Walk-forward histórico 2001-2025: estrategia top quintil vs benchmarks")
+st.write(
+    "Esta sección del dashboard tiene dos partes claramente diferenciadas:\n"
+    "1) La validación inicial se construye con datos históricos recientes (aprox. 3 años) del dataset ``factores_score_stoxx600.csv``. "
+    "En esa parte se calculan scores ajustados por empresa usando únicamente factores técnicos y fundamentales disponibles en el periodo reciente: "
+    "momentum 3/6/12m, RSI14 y distancia a SMA200, junto con los factores fundamentales del dataset. "
+    "Esto sirve para ver el comportamiento del ranking actual del universo, pero no es un backtest walk-forward completo.\n"
+    "2) La simulación walk-forward anual utiliza precios históricos diarios desde 2001 hasta 2025. "
+    "Cada corte anual calcula el score con datos solo hasta esa fecha y luego simula el rendimiento del quintil top (Q5) durante los siguientes 12 meses, "
+    "comparándolo contra el universo equal-weight y el índice real ^STOXX."
+)
+
+price_path = Path("precios_stoxx600_max.csv")
+index_path = Path("stoxx600_index.csv")
+
+if price_path.exists():
+    try:
+        close = load_close_prices(str(price_path))
+        stoxx600_index = load_stoxx_index(str(index_path)) if index_path.exists() else pd.Series(dtype="float64")
+        df_walk, curva_walk, walk_metrics = simulate_walkforward(close, stoxx600_index)
+    except Exception as exc:
+        st.error(f"No se pudo ejecutar la simulación walk-forward: {exc}")
+        df_walk = pd.DataFrame()
+        curva_walk = pd.DataFrame()
+        walk_metrics = {}
+else:
+    st.warning("No se encontró el archivo de precios necesarios para el walk-forward: precios_stoxx600_max.csv")
+    df_walk = pd.DataFrame()
+    curva_walk = pd.DataFrame()
+    walk_metrics = {}
+
+if not df_walk.empty:
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Cortes válidos", walk_metrics.get("cutoffs", 0))
+    col2.metric("CAGR Q5 long-only", f"{walk_metrics['cagr_estrategia']:.2%}")
+    col3.metric("CAGR benchmark equal-weight", f"{walk_metrics['cagr_bench']:.2%}")
+
+    if pd.notna(walk_metrics.get("cagr_stoxx600")):
+        st.metric("CAGR ^STOXX real", f"{walk_metrics['cagr_stoxx600']:.2%}")
+    if walk_metrics.get("p_value_long_short") is not None:
+        st.caption(
+            f"Valor p long-short Q5-Q1: {walk_metrics['p_value_long_short']:.3f}. "
+            "El valor p alto indica que el edge medio anual no es estadísticamente significativo."
+        )
+
+    st.markdown(
+        "**Gráfico 1: Curva de capital acumulada**  \n"
+        "Unidad: capital relativo ($100 inicial). "
+        "Cada serie muestra cómo evolucionaría $100 iniciales bajo la estrategia, el benchmark equal-weight y el índice ^STOXX real."
+    )
+    curve_display = curva_walk.set_index("fecha")[
+        ["estrategia_long_only_Q5", "benchmark_universo_equalweight", "benchmark_stoxx600_real", "experimento_long_short"]
+    ]
+    st.line_chart(curve_display, use_container_width=True)
+
+    st.markdown(
+        "**Gráfico 2: Curva logarítmica de capital**  \n"
+        "Unidad: log(valor de capital). Esta escala muestra mejor el crecimiento relativo y las caídas porcentuales similares en toda la serie.\n"
+        "Una subida del 20% en cualquier punto de la curva ocupa la misma distancia vertical, lo que facilita ver la consistencia del rendimiento compuesto."
+    )
+    log_curve = np.log(curve_display.replace({0: np.nan})).replace([np.inf, -np.inf], np.nan)
+    st.line_chart(log_curve, use_container_width=True)
+
+    st.markdown(
+        "**Importante**: la curva logarítmica no cambia el resultado financiero, solo hace que los retornos compuestos sean más comparables visualmente."
+    )
+
+    st.markdown(
+        "**Gráfico 3: Retornos anuales por corte**  \n"
+        "Unidad: porcentaje anual (%). Cada barra muestra el retorno de 12 meses a partir de cada corte anual para el top quintil, el bottom quintil, el universo equal-weight, el índice ^STOXX real y la diferencia long-short."
+    )
+    returns_display = df_walk.set_index("cutoff")[
+        ["q5_ret", "q1_ret", "universo_ret_medio", "stoxx600_ret", "long_short"]
+    ].copy()
+    returns_display = returns_display.rename(
+        columns={
+            "q5_ret": "Q5",
+            "q1_ret": "Q1",
+            "universo_ret_medio": "Universo",
+            "stoxx600_ret": "^STOXX",
+            "long_short": "Q5 - Q1",
+        }
+    )
+    st.bar_chart(returns_display * 100, use_container_width=True)
+
+    st.subheader("Resultados por corte anual")
+    display_walk = df_walk.copy()
+    display_walk["cutoff"] = pd.to_datetime(display_walk["cutoff"]).dt.date
+    display_walk["fwd_date"] = pd.to_datetime(display_walk["fwd_date"]).dt.date
+    display_walk = display_walk.rename(
+        columns={
+            "cutoff": "Corte",
+            "fwd_date": "Fecha final",
+            "q1_ret": "Retorno Q1",
+            "q5_ret": "Retorno Q5",
+            "long_short": "Long-short",
+            "universo_ret_medio": "Retorno universo",
+            "stoxx600_ret": "Retorno ^STOXX",
+            "n_empresas": "Empresas",
+        }
+    )
+    st.dataframe(display_walk, use_container_width=True, hide_index=True)
+else:
+    st.info("La simulación walk-forward no está disponible porque faltan datos o no hay cortes válidos.")
 
 st.markdown("---")
 st.caption("Desarrollado por [Camachuelo](https://github.com/CamachueloPrograming)")
