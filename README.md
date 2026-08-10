@@ -185,6 +185,99 @@ histórico anterior al corte, respetando el principio de no mirar datos futuros.
 - El dataset no incluye datos fundamentales point-in-time reales.
 - El long-short Q5-Q1 sirve como diagnóstico interno, no como estrategia final.
 
+## Walk-forward ampliado: validación del score técnico (2001-2025)
+
+### Resumen ejecutivo
+
+Se amplió la validación walk-forward original (3 cortes) a **25 cortes anuales
+no solapados (2001-2025)**, usando solo los 5 factores técnicos (momentum
+3/6/12m, RSI14, distancia a SMA200) — los fundamentales se excluyeron de
+esta fase porque yfinance no ofrece histórico point-in-time de ellos, y
+usarlos habría introducido fuga de información.
+
+**Resultado principal:** el score técnico puro **no muestra poder
+predictivo estadísticamente significativo** en ningún horizonte probado
+(3, 6 o 12 meses). Sin embargo, una simulación de cartera basada en ese
+mismo score sí bate a un benchmark equal-weight en el acumulado de 25 años
+— una aparente contradicción que se explica más abajo.
+
+---
+
+### 1. De 3 a 25 cortes: por qué importa el tamaño de muestra
+
+Con solo 3 observaciones, un resultado favorable por casualidad es
+indistinguible de una señal real. Al escalar a 25 años independientes
+(fechas de corte espaciadas exactamente el horizonte de evaluación, para
+que ninguna ventana se solape con otra), esa señal aparente se diluyó
+hasta quedar dentro del rango esperable por azar.
+
+**Lección del proyecto:** una validación con pocas observaciones puede
+sugerir que un modelo "funciona" cuando en realidad el ruido de mercado
+se ha confundido con señal. Ampliar la muestra no es un paso opcional —
+es lo que separa una validación real de una ilusión estadística.
+
+### 2. Resultados por horizonte
+
+En la muestra ampliada (25 cortes) las métricas principales fueron:
+
+- 3 meses: Accuracy 49.0% (p=0.33), long-short medio anual -0.08% (p=0.96)
+- 6 meses: Accuracy 50.4% (p=0.72), long-short medio anual +0.16% (p=0.96)
+- 12 meses: Accuracy 50.8% (p=0.54), long-short medio anual +0.94% (p=0.86)
+
+Ninguno de estos resultados es estadísticamente significativo.
+
+### 3. Momentum crash de 2009
+
+El experimento de long-short (comprar Q5, vender en corto Q1 — diagnóstico de
+validación, no una estrategia recomendada) se desplomó un 82% en el corte de
+2009: las empresas más castigadas del año anterior (Q1) rebotaron con más
+fuerza que las de mejor score (Q5) en la recuperación post-crisis financiera.
+Este patrón de reversión brusca del momentum tras caídas severas está
+documentado en la literatura académica y su presencia valida que el motor
+captura dinámicas reales, aunque no suficientes para predecir con fiabilidad.
+
+### 4. Simulación de cartera: long-only Q5 vs benchmarks
+
+Estrategia propuesta: 100% larga, comprar a partes iguales el quintil top (Q5)
+cada año, rebalanceo anual. Resultados (2001-2025, $100 iniciales):
+
+- Long-only Q5: CAGR ≈ 12.8% → Capital final ≈ $2,020
+- Benchmark equal-weight: CAGR ≈ 10.9% → Capital final ≈ $1,336
+- Índice real ^STOXX (desde 2004/2005 en datos de Yahoo): CAGR ≈ 3.6% → $209
+- Experimento long-short Q5-Q1 (no recomendado): capital final ≈ $29
+
+Esta diferencia acumulada no contradice la falta de predictividad anual:
+un edge medio pequeño y no significativo puede dar lugar a grandes diferencias
+por composición a lo largo de 25 años; son preguntas distintas (fiabilidad
+anual vs camino histórico observado).
+
+### 5. Efecto tamaño y construcción de benchmark
+
+La mayor parte de la brecha entre la estrategia y el índice real se explica
+por la construcción cap-weighted del índice, que concentra peso en mega-caps.
+Un benchmark equal-weight (y la propia estrategia Q5) reparte capital
+más uniformemente y se beneficia del rebalanceo, que tiende a comprar
+relativamente companies más pequeñas que, históricamente, han rendido
+mejor a largo plazo (efecto tamaño).
+
+### 6. Sesgo de supervivencia
+
+El universo usado se construyó a partir de la composición actual (2026) con
+histórico hacia atrás; por tanto, empresas que desaparecieron en el camino
+no están incluidas en los cortes históricos. Esto infla los resultados en
+relación a un índice que sí refleja entradas y salidas históricas. Una
+comprobación parcial (2021-2025) muestra reducción de la ventaja de la
+estrategia (de +1.9 a +0.9 p.p. de CAGR), consistente con que el sesgo de
+supervivencia puede estar influyendo.
+
+### 7. Conclusión y presentación en la app
+
+El score técnico puro (momentum + RSI + distancia a SMA200) **no tiene
+poder predictivo demostrado de forma robusta**. En la app se presenta este
+resultado junto con advertencias explícitas (fuga de información potencial,
+sesgo de supervivencia, ausencia de costes de transacción) y la diferencia
+entre significancia estadística anual y efecto acumulado en el camino histórico.
+
 ## Requisitos
 
 - Python 3.12+

@@ -471,6 +471,33 @@ if not df_walk.empty:
         }
     )
     st.dataframe(display_walk, use_container_width=True, hide_index=True)
+
+    st.markdown(
+        """
+        ### Walk-forward ampliado: validación del score técnico (2001-2025)
+
+        Se realizaron 25 cortes anuales no solapados (2001-2025) usando **solo
+        factores técnicos**: momentum 3/6/12m, RSI14 y distancia a SMA200. Los
+        fundamentales se excluyeron porque no están disponibles point-in-time
+        vía yfinance y su inclusión introduciría fuga de información.
+
+        **Resultado resumen:** el score técnico puro no mostró capacidad
+        predictiva estadísticamente significativa en los horizontes evaluados
+        (3, 6 y 12 meses). Aun así, la simulación long-only sobre Q5 acumuló
+        mayor capital en el período 2001-2025 que el benchmark equal-weight;
+        esta aparente discrepancia se explica por la diferencia entre pruebas
+        de significancia anual y efectos compuestos en un camino histórico.
+
+        Se documenta además un evento notable: en el corte 2009 el experimento
+        long-short sufrió un "momentum crash" donde Q1 rebotó con más fuerza
+        que Q5 durante la recuperación post-crisis (patrón consistente con la
+        literatura sobre "momentum crashes").
+
+        Nota: todas estas observaciones se muestran con advertencias sobre
+        sesgo de supervivencia, falta de costes de transacción y ausencia de
+        datos fundamentales point-in-time.
+        """
+    )
 else:
     st.info("La simulación walk-forward no está disponible porque faltan datos o no hay cortes válidos.")
 
