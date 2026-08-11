@@ -1,6 +1,6 @@
 ﻿# Quant Stock Screener — Stoxx Europe 600
 
-🔗 **App en vivo**: https://quant-proyect-r9vs32bsy287xrcqy9tpvq.streamlit.app
+🔗 **App en vivo**: https://quant-proyect.streamlit.app
 
 ## Descripción general
 
