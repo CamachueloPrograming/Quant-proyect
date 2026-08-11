@@ -240,7 +240,7 @@ def simulate_walkforward(
         "cutoffs": len(df_res),
     }
 
-    return df_res, curva, metrics
+    return df_res, curve, metrics
 
 st.set_page_config(page_title="Sector-Neutral Stoxx Europe 600 Screener", layout="wide", page_icon="📊")
 
