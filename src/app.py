@@ -67,7 +67,7 @@ def group_zscore_winsorize(factors: pd.DataFrame, sector_map: pd.Series | None =
 
 
 @st.cache_data
-def load_sector_map(path: str = "data/factores_score_stoxx600.csv") -> pd.Series:
+def load_sector_map(path: str = "data/stoxx600_factor_scores.csv") -> pd.Series:
     """Load ticker-to-sector mapping for sector-level normalization."""
     try:
         metadata = pd.read_csv(path, usecols=["yahoo_ticker", "sector"], dtype={"yahoo_ticker": str, "sector": str})
@@ -131,9 +131,9 @@ def simulate_walkforward(
     results = []
     sector_map = load_sector_map()
 
-    # En el walk-forward, el score técnico usa z-scores calculados por sector.
-    # Esto evita que el ranking premie sectores enteros con buen momentum en lugar
-    # de empresas destacadas dentro de cada sector.
+    # In the walk-forward simulation, the technical score uses sector-normalized z-scores.
+    # This prevents the ranking from simply favoring entire sectors with strong momentum
+    # instead of companies that stand out within their sector.
     for cutoff in cutoffs:
         cpos = idx.get_loc(cutoff)
         fpos = cpos + horizon
@@ -163,11 +163,11 @@ def simulate_walkforward(
             {
                 "cutoff": cutoff,
                 "fwd_date": idx[fpos],
-                "n_empresas": len(score),
+                "num_companies": len(score),
                 "q1_ret": q1_ret,
                 "q5_ret": q5_ret,
                 "long_short": q5_ret - q1_ret,
-                "universo_ret_medio": fwd_ret.mean(),
+                "universe_avg_ret": fwd_ret.mean(),
             }
         )
 
@@ -188,12 +188,12 @@ def simulate_walkforward(
     else:
         df_res["stoxx600_ret"] = np.nan
 
-    equity_estrategia = [100.0]
-    equity_bench = [100.0]
+    equity_strategy = [100.0]
+    equity_benchmark = [100.0]
     equity_long_short = [100.0]
     for _, row in df_res.iterrows():
-        equity_estrategia.append(equity_estrategia[-1] * (1 + row["q5_ret"]))
-        equity_bench.append(equity_bench[-1] * (1 + row["universo_ret_medio"]))
+        equity_strategy.append(equity_strategy[-1] * (1 + row["q5_ret"]))
+        equity_benchmark.append(equity_benchmark[-1] * (1 + row["universe_avg_ret"]))
         equity_long_short.append(equity_long_short[-1] * (1 + row["long_short"]))
 
     equity_stoxx600 = [np.nan] * (len(df_res) + 1)
@@ -204,14 +204,14 @@ def simulate_walkforward(
             ret = df_res["stoxx600_ret"].iloc[i]
             equity_stoxx600[i + 1] = equity_stoxx600[i] * (1 + ret) if pd.notna(ret) else equity_stoxx600[i]
 
-    fechas = [df_res["cutoff"].iloc[0] - pd.DateOffset(years=1)] + list(df_res["cutoff"])
-    curva = pd.DataFrame(
+    dates = [df_res["cutoff"].iloc[0] - pd.DateOffset(years=1)] + list(df_res["cutoff"])
+    curve = pd.DataFrame(
         {
-            "fecha": fechas,
-            "estrategia_long_only_Q5": equity_estrategia,
-            "benchmark_universo_equalweight": equity_bench,
+            "date": dates,
+            "strategy_long_only_Q5": equity_strategy,
+            "benchmark_universe_equalweight": equity_benchmark,
             "benchmark_stoxx600_real": equity_stoxx600,
-            "experimento_long_short": equity_long_short,
+            "long_short_experiment": equity_long_short,
         }
     )
 
@@ -232,66 +232,66 @@ def simulate_walkforward(
         "cagr_estrategia": cagr_estrategia,
         "cagr_bench": cagr_bench,
         "cagr_stoxx600": cagr_stoxx600,
-        "capital_final_estrategia": equity_estrategia[-1],
-        "capital_final_bench": equity_bench[-1],
-        "capital_final_stoxx600": equity_stoxx600[-1] if primer_valido is not None else np.nan,
-        "capital_final_long_short": equity_long_short[-1],
+        "final_capital_strategy": equity_strategy[-1],
+        "final_capital_benchmark": equity_benchmark[-1],
+        "final_capital_stoxx600": equity_stoxx600[-1] if primer_valido is not None else np.nan,
+        "final_capital_long_short": equity_long_short[-1],
         "p_value_long_short": p_ls,
         "cutoffs": len(df_res),
     }
 
     return df_res, curva, metrics
 
-st.set_page_config(page_title="Stoxx 600 Screener", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Sector-Neutral Stoxx Europe 600 Screener", layout="wide", page_icon="📊")
 
-st.title("Stoxx 600 Screener")
-with st.expander("Metodología"):
+st.title("Sector-Neutral Stoxx Europe 600 Screener")
+with st.expander("Methodology"):
     st.write(
-        "El `score_ajustado` combina 9 factores fundamentales y técnicos normalizados por z-score. "
-        "El gráfico de quintiles muestra una validación aproximada y no es un backtest point-in-time, "
-        "ya que existe circularidad porque `momentum_12m` es uno de los factores usados en el score. "
-        "Aproximadamente 90 empresas tienen algún factor incompleto por limitaciones de datos gratuitos de Yahoo Finance."
+        "The `score_ajustado` combines 9 technical and fundamental factors normalized by z-score. "
+        "The quintile chart is an approximate validation and not a point-in-time backtest, "
+        "because `momentum_12m` is one of the factors used in the score. "
+        "Around 90 companies have at least one incomplete factor due to free Yahoo Finance data limitations."
     )
 
-st.markdown("Vista interactiva del ranking de empresas por score ajustado.")
+st.markdown("Interactive ranking view for companies by adjusted score.")
 
-csv_path = "data/factores_score_stoxx600.csv"
+csv_path = "data/stoxx600_factor_scores.csv"
 
 try:
     df = load_data(csv_path)
 except FileNotFoundError:
-    st.error(f"No se encontró el archivo: {csv_path}")
+    st.error(f"Data file not found: {csv_path}")
     st.stop()
 
 if "score_ajustado" not in df.columns:
-    st.error("La columna 'score_ajustado' no está presente en el CSV.")
+    st.error("The CSV does not contain the required 'score_ajustado' column.")
     st.stop()
 
 # Sidebar filters
-st.sidebar.header("Filtros")
+st.sidebar.header("Filters")
 
 has_sector = "sector" in df.columns
-has_pais = "pais" in df.columns
+has_country = "pais" in df.columns
 
 sector_options = sorted(df["sector"].dropna().unique()) if has_sector else []
-pais_options = sorted(df["pais"].dropna().unique()) if has_pais else []
+country_options = sorted(df["pais"].dropna().unique()) if has_country else []
 
 if has_sector:
     selected_sectors = st.sidebar.multiselect("Sector", sector_options, default=sector_options)
 else:
-    st.sidebar.info("No hay columna 'sector' en el CSV.")
+    st.sidebar.info("The CSV does not contain a 'sector' column.")
     selected_sectors = None
 
-if has_pais:
-    selected_paises = st.sidebar.multiselect("País", pais_options, default=pais_options)
+if has_country:
+    selected_countries = st.sidebar.multiselect("Country", country_options, default=country_options)
 else:
-    st.sidebar.info("No hay columna 'pais' en el CSV.")
-    selected_paises = None
+    st.sidebar.info("The CSV does not contain a country ('pais') column.")
+    selected_countries = None
 
 min_score = float(df["score_ajustado"].min())
 max_score = float(df["score_ajustado"].max())
 selected_score = st.sidebar.slider(
-    "Rango de score ajustado",
+    "Adjusted score range",
     min_value=min_score,
     max_value=max_score,
     value=(min_score, max_score),
@@ -301,13 +301,13 @@ selected_score = st.sidebar.slider(
 filtered = df.copy()
 if has_sector and selected_sectors:
     filtered = filtered[filtered["sector"].isin(selected_sectors)]
-if has_pais and selected_paises:
-    filtered = filtered[filtered["pais"].isin(selected_paises)]
+if has_country and selected_countries:
+    filtered = filtered[filtered["pais"].isin(selected_countries)]
 filtered = filtered[filtered["score_ajustado"].between(selected_score[0], selected_score[1])]
 filtered = filtered.sort_values(by="score_ajustado", ascending=False)
 
 if not filtered.empty:
-    quintil_summary = build_quintile_returns(filtered)
+    quintile_summary = build_quintile_returns(filtered)
 
     best_row = filtered.iloc[0]
     best_name = (
@@ -315,21 +315,21 @@ if not filtered.empty:
         if "nombre" in best_row.index and pd.notna(best_row["nombre"])
         else best_row["yahoo_ticker"]
     )
-    quintil_5_return = None
-    if not quintil_summary.empty and 5 in quintil_summary["quintil"].values:
-        quintil_5_return = float(
-            quintil_summary.loc[quintil_summary["quintil"] == 5, "retorno_medio_12m"].iloc[0]
+    quintile_5_return = None
+    if not quintile_summary.empty and 5 in quintile_summary["quintile"].values:
+        quintile_5_return = float(
+            quintile_summary.loc[quintile_summary["quintile"] == 5, "avg_return_12m"].iloc[0]
         )
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Empresas totales", len(filtered))
-    col2.metric("Mejor score", f"{best_name} ({best_row['score_ajustado']:.3f})")
-    col3.metric("Retorno medio quintil 5", f"{quintil_5_return:.3f}" if quintil_5_return is not None else "N/A")
+    col1.metric("Total companies", len(filtered))
+    col2.metric("Best score", f"{best_name} ({best_row['score_ajustado']:.3f})")
+    col3.metric("Average Q5 return", f"{quintile_5_return:.3f}" if quintile_5_return is not None else "N/A")
 else:
-    st.info("No hay empresas que cumplan los filtros seleccionados.")
+    st.info("No companies match the selected filters.")
 
 st.markdown("---")
-st.subheader("Ranking ordenado por score ajustado")
+st.subheader("Adjusted score ranking")
 
 if not filtered.empty:
     display_df = filtered.copy()
@@ -341,6 +341,8 @@ if not filtered.empty:
         col for col in display_df.columns
         if col.startswith("z_") or col in {"pe_ratio", "roe", "debt_to_equity", "revenue_growth", "momentum_3m", "momentum_6m", "momentum_12m", "rsi", "dist_sma200"}
     ]
+    display_df = display_df.rename(columns={"nombre": "name", "pais": "country", "score_ajustado": "adjusted_score"})
+    key_columns = [col for col in ["yahoo_ticker", "name", "sector", "country", "adjusted_score"] if col in display_df.columns]
     other_columns = [col for col in display_df.columns if col not in key_columns + technical_columns]
     ordered_columns = key_columns + other_columns + technical_columns
     display_df = display_df[ordered_columns].reset_index(drop=True)
@@ -351,37 +353,34 @@ if not filtered.empty:
 
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-    with st.expander("Detalle técnico (z-scores y factores)"):
+    with st.expander("Technical details (z-scores and factors)"):
         technical_display = display_df[key_columns + technical_columns].copy()
         st.dataframe(technical_display, use_container_width=True, hide_index=True)
 else:
-    st.info("No hay datos disponibles para mostrar la tabla.")
+    st.info("No data available to display the table.")
 
 if not filtered.empty and "momentum_12m" in filtered.columns:
-    quintil_summary = build_quintile_returns(filtered)
-    st.subheader("Retorno por quintil de score")
+    quintile_summary = build_quintile_returns(filtered)
+    st.subheader("Score quintile returns")
     st.bar_chart(
-        quintil_summary.set_index("quintil")["retorno_medio_12m"],
+        quintile_summary.set_index("quintile")["avg_return_12m"],
         use_container_width=True,
     )
-else:
-    st.info("No hay datos disponibles para generar el gráfico de retorno por quintil.")
 
-st.markdown("---")
-st.subheader("Walk-forward histórico 2001-2025: estrategia top quintil vs benchmarks")
+st.subheader("Historic walk-forward 2001-2025: top quintile strategy vs benchmarks")
 st.write(
-    "Esta sección del dashboard tiene dos partes claramente diferenciadas:\n"
-    "1) La validación inicial se construye con datos históricos recientes (aprox. 3 años) del dataset ``factores_score_stoxx600.csv``. "
-    "En esa parte se calculan scores ajustados por empresa usando únicamente factores técnicos y fundamentales disponibles en el periodo reciente: "
-    "momentum 3/6/12m, RSI14 y distancia a SMA200, junto con los factores fundamentales del dataset. "
-    "Esto sirve para ver el comportamiento del ranking actual del universo, pero no es un backtest walk-forward completo.\n"
-    "2) La simulación walk-forward anual utiliza precios históricos diarios desde 2001 hasta 2025. "
-    "Cada corte anual calcula el score con datos solo hasta esa fecha y luego simula el rendimiento del quintil top (Q5) durante los siguientes 12 meses, "
-    "comparándolo contra el universo equal-weight y el índice real ^STOXX."
+    "This dashboard section has two clearly separated parts:\n"
+    "1) The initial validation uses recent historical data (~3 years) from the `stoxx600_factor_scores.csv` dataset. "
+    "It computes adjusted scores per company using only the available technical and fundamental factors: "
+    "momentum 3/6/12m, RSI14, and distance to SMA200, together with the available fundamental factors. "
+    "This shows the current universe ranking behavior, but it is not a full point-in-time walk-forward backtest.\n"
+    "2) The annual walk-forward simulation uses daily price history from 2001 through 2025. "
+    "Each yearly cutoff computes the score using data available up to that date and then simulates the next 12 months' return for the top quintile (Q5), "
+    "comparing it against the equal-weight universe and the real ^STOXX index."
 )
 
-price_path = Path("data/precios_stoxx600_max.csv")
-index_path = Path("data/stoxx600_index.csv")
+price_path = Path("data/stoxx600_prices_max.csv")
+index_path = Path("data/stoxx600_real_index.csv")
 
 if price_path.exists():
     try:
@@ -389,55 +388,55 @@ if price_path.exists():
         stoxx600_index = load_stoxx_index(str(index_path)) if index_path.exists() else pd.Series(dtype="float64")
         df_walk, curva_walk, walk_metrics = simulate_walkforward(close, stoxx600_index)
     except Exception as exc:
-        st.error(f"No se pudo ejecutar la simulación walk-forward: {exc}")
+        st.error(f"Could not run walk-forward simulation: {exc}")
         df_walk = pd.DataFrame()
         curva_walk = pd.DataFrame()
         walk_metrics = {}
 else:
-    st.warning("No se encontró el archivo de precios necesarios para el walk-forward: precios_stoxx600_max.csv")
+    st.warning("The price history file for walk-forward was not found: data/stoxx600_prices_max.csv")
     df_walk = pd.DataFrame()
     curva_walk = pd.DataFrame()
     walk_metrics = {}
 
 if not df_walk.empty:
     col1, col2, col3 = st.columns(3)
-    col1.metric("Cortes válidos", walk_metrics.get("cutoffs", 0))
+    col1.metric("Valid cutoffs", walk_metrics.get("cutoffs", 0))
     col2.metric("CAGR Q5 long-only", f"{walk_metrics['cagr_estrategia']:.2%}")
-    col3.metric("CAGR benchmark equal-weight", f"{walk_metrics['cagr_bench']:.2%}")
+    col3.metric("CAGR equal-weight benchmark", f"{walk_metrics['cagr_bench']:.2%}")
 
     if pd.notna(walk_metrics.get("cagr_stoxx600")):
-        st.metric("CAGR ^STOXX real", f"{walk_metrics['cagr_stoxx600']:.2%}")
+        st.metric("CAGR real ^STOXX", f"{walk_metrics['cagr_stoxx600']:.2%}")
     if walk_metrics.get("p_value_long_short") is not None:
         st.caption(
-            f"Valor p long-short Q5-Q1: {walk_metrics['p_value_long_short']:.3f}. "
-            "El valor p alto indica que el edge medio anual no es estadísticamente significativo."
+            f"Long-short Q5-Q1 p-value: {walk_metrics['p_value_long_short']:.3f}. "
+            "A high p-value indicates that the average annual edge is not statistically significant."
         )
 
     st.markdown(
-        "**Gráfico 1: Curva de capital acumulada**  \n"
-        "Unidad: capital relativo ($100 inicial). "
-        "Cada serie muestra cómo evolucionaría $100 iniciales bajo la estrategia, el benchmark equal-weight y el índice ^STOXX real."
+        "**Chart 1: Cumulative equity curve**  \n"
+        "Unit: relative capital ($100 starting value). "
+        "Each series shows how $100 would evolve under the strategy, the equal-weight benchmark, and the real ^STOXX index."
     )
-    curve_display = curva_walk.set_index("fecha")[
-        ["estrategia_long_only_Q5", "benchmark_universo_equalweight", "benchmark_stoxx600_real", "experimento_long_short"]
+    curve_display = curva_walk.set_index("date")[
+        ["strategy_long_only_Q5", "benchmark_universe_equalweight", "benchmark_stoxx600_real", "long_short_experiment"]
     ]
     st.line_chart(curve_display, use_container_width=True)
 
     st.markdown(
-        "**Gráfico 2: Curva logarítmica de capital**  \n"
-        "Unidad: log(valor de capital). Esta escala muestra mejor el crecimiento relativo y las caídas porcentuales similares en toda la serie.\n"
-        "Una subida del 20% en cualquier punto de la curva ocupa la misma distancia vertical, lo que facilita ver la consistencia del rendimiento compuesto."
+        "**Chart 2: Logarithmic equity curve**  \n"
+        "Unit: log(capital). This scale makes relative growth and similar percentage moves easier to compare across the series.\n"
+        "A 20% rise anywhere on the curve occupies the same vertical distance, which helps visualize compound return consistency."
     )
     log_curve = np.log(curve_display.replace({0: np.nan})).replace([np.inf, -np.inf], np.nan)
     st.line_chart(log_curve, use_container_width=True)
 
     st.markdown(
-        "**Importante**: la curva logarítmica no cambia el resultado financiero, solo hace que los retornos compuestos sean más comparables visualmente."
+        "**Note**: the logarithmic chart does not change financial outcomes; it only makes compound returns more comparable visually."
     )
 
     st.markdown(
-        "**Gráfico 3: Retornos anuales por corte**  \n"
-        "Unidad: porcentaje anual (%). Cada barra muestra el retorno de 12 meses a partir de cada corte anual para el top quintil, el bottom quintil, el universo equal-weight, el índice ^STOXX real y la diferencia long-short."
+        "**Chart 3: Annual returns by cutoff**  \n"
+        "Unit: annual percentage (%). Each bar shows the 12-month return from each annual cutoff for the top quintile, the bottom quintile, the equal-weight universe, the real ^STOXX index, and the long-short difference."
     )
     returns_display = df_walk.set_index("cutoff")[
         ["q5_ret", "q1_ret", "universo_ret_medio", "stoxx600_ret", "long_short"]
@@ -446,59 +445,46 @@ if not df_walk.empty:
         columns={
             "q5_ret": "Q5",
             "q1_ret": "Q1",
-            "universo_ret_medio": "Universo",
+            "universo_ret_medio": "Universe",
             "stoxx600_ret": "^STOXX",
             "long_short": "Q5 - Q1",
         }
     )
     st.bar_chart(returns_display * 100, use_container_width=True)
 
-    st.subheader("Resultados por corte anual")
+    st.subheader("Annual cutoff results")
     display_walk = df_walk.copy()
     display_walk["cutoff"] = pd.to_datetime(display_walk["cutoff"]).dt.date
     display_walk["fwd_date"] = pd.to_datetime(display_walk["fwd_date"]).dt.date
     display_walk = display_walk.rename(
         columns={
-            "cutoff": "Corte",
-            "fwd_date": "Fecha final",
-            "q1_ret": "Retorno Q1",
-            "q5_ret": "Retorno Q5",
+            "cutoff": "Cutoff",
+            "fwd_date": "Final date",
+            "q1_ret": "Q1 return",
+            "q5_ret": "Q5 return",
             "long_short": "Long-short",
-            "universo_ret_medio": "Retorno universo",
-            "stoxx600_ret": "Retorno ^STOXX",
-            "n_empresas": "Empresas",
+            "universe_avg_ret": "Universe return",
+            "stoxx600_ret": "^STOXX return",
+            "num_companies": "Companies",
         }
     )
     st.dataframe(display_walk, use_container_width=True, hide_index=True)
 
     st.markdown(
         """
-        ### Walk-forward ampliado: validación del score técnico (2001-2025)
+        ### Extended walk-forward: technical score validation (2001-2025)
 
-        Se realizaron 25 cortes anuales no solapados (2001-2025) usando **solo
-        factores técnicos**: momentum 3/6/12m, RSI14 y distancia a SMA200. Los
-        fundamentales se excluyeron porque no están disponibles point-in-time
-        vía yfinance y su inclusión introduciría fuga de información.
+        The analysis used 25 non-overlapping annual cutoffs (2001-2025) with **only technical factors**: momentum 3/6/12m, RSI14, and distance to SMA200. Fundamentals were excluded because point-in-time historical fundamental data is not available via yfinance, and including them would introduce lookahead bias.
 
-        **Resultado resumen:** el score técnico puro no mostró capacidad
-        predictiva estadísticamente significativa en los horizontes evaluados
-        (3, 6 y 12 meses). Aun así, la simulación long-only sobre Q5 acumuló
-        mayor capital en el período 2001-2025 que el benchmark equal-weight;
-        esta aparente discrepancia se explica por la diferencia entre pruebas
-        de significancia anual y efectos compuestos en un camino histórico.
+        **Summary result:** the pure technical score did not show statistically significant predictive power across the evaluated horizons (3, 6, and 12 months). Still, the long-only Q5 simulation accumulated more capital than the equal-weight benchmark over 2001-2025; this apparent discrepancy arises from the difference between annual significance tests and compound returns along a historical path.
 
-        Se documenta además un evento notable: en el corte 2009 el experimento
-        long-short sufrió un "momentum crash" donde Q1 rebotó con más fuerza
-        que Q5 durante la recuperación post-crisis (patrón consistente con la
-        literatura sobre "momentum crashes").
+        A notable event is also documented: at the 2009 cutoff, the long-short experiment suffered a "momentum crash" where Q1 rebounded more strongly than Q5 during the post-crisis recovery (a pattern consistent with momentum crash literature).
 
-        Nota: todas estas observaciones se muestran con advertencias sobre
-        sesgo de supervivencia, falta de costes de transacción y ausencia de
-        datos fundamentales point-in-time.
+        Note: all observations are presented with warnings about survival bias, absent transaction costs, and missing point-in-time fundamental data.
         """
     )
 else:
-    st.info("La simulación walk-forward no está disponible porque faltan datos o no hay cortes válidos.")
+    st.info("The walk-forward simulation is not available because data is missing or there are no valid cutoffs.")
 
 st.markdown("---")
-st.caption("Desarrollado por [Camachuelo](https://github.com/CamachueloPrograming)")
+st.caption("Developed by [Camachuelo](https://github.com/CamachueloPrograming)")

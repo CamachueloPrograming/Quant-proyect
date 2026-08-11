@@ -1,1 +1,1 @@
-data/precios_stoxx600_max.csv filter=lfs diff=lfs merge=lfs -text
+data/stoxx600_prices_max.csv filter=lfs diff=lfs merge=lfs -text

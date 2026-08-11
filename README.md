@@ -1,284 +1,117 @@
-﻿# Quant Stock Screener — Stoxx Europe 600
+﻿# Sector-Neutral Stoxx Europe 600 Screener
 
-🔗 **App en vivo**: https://quant-proyect.streamlit.app
+This repository contains a Streamlit dashboard for quantitative analysis of the
+**Stoxx Europe 600** universe. It is designed to show a sector-neutral ranking
+framework, validate the ranking by quintile, and support the process with an
+annual walk-forward simulation.
 
-## Descripción general
+The app uses local datasets to:
 
-Este proyecto es un dashboard de análisis cuantitativo para las 600 empresas del índice
-**Stoxx Europe 600**. El objetivo es construir un sistema de ranking que combine factores
-técnicos y fundamentales, visualizar su comportamiento y complementar esa visión con
-una simulación walk-forward histórica.
+- Display an interactive ranking based on an adjusted score.
+- Validate the score with quintile performance metrics.
+- Compare the top quintile to the overall universe and the real ^STOXX benchmark.
+- Run a historical walk-forward simulation using annual cutoffs.
 
-La aplicación está hecha con **Streamlit** y se apoya en datasets locales para:
+> This project is exploratory and is not investment advice.
 
-- Mostrar un ranking interactivo por `score_ajustado`.
-- Validar resultados por quintiles.
-- Comparar top-quintil vs bottom-quintil vs universo completo.
-- Ejecutar una simulación walk-forward anual con cortes históricos.
+## Core concepts
 
-> Este proyecto es exploratorio y no constituye asesoría de inversión.
+### Sector-neutral z-score normalization
 
-## Fases del proyecto
+Scores are computed from technical and fundamental factors, and the z-scores are
+calculated within each sector. This means each company is compared against its
+sector peers instead of the full universe, so the ranking highlights relative
+strength within a sector rather than sector-level momentum.
 
-### 1. Recolección y preparación de datos
+### Adjusted score
 
-La fase inicial consistió en reunir los datos necesarios para el universo Stoxx 600:
+The adjusted score is built from several factor inputs, including:
 
-- Factores técnicos y fundamentales por empresa.
-- Precios históricos diarios para el universo completo.
-- Histórico del índice real `^STOXX`.
+- P/E ratio
+- ROE
+- Debt / Equity
+- Revenue growth
+- 3-month momentum
+- 6-month momentum
+- 12-month momentum
+- RSI 14
+- Distance to SMA 200
 
-Los datos se normalizaron y se exportaron a CSVs que el dashboard consume directamente.
+Negative directional factors such as P/E and Debt/Equity are inverted so that a
+higher score always reflects stronger relative fundamentals or momentum.
 
-### 2. Cálculo del score compuesto
+### Walk-forward simulation
 
-El `score_ajustado` está construido a partir de 9 factores:
+The annual walk-forward simulation uses the historical price dataset in
+`data/stoxx600_prices_max.csv` and the real ^STOXX index in
+`data/stoxx600_real_index.csv`.
 
-- Fundamentos:
-  - P/E
-  - ROE
-  - Deuda / Equity
-  - Crecimiento de ingresos
-- Técnicos:
-  - Momentum 3 meses
-  - Momentum 6 meses
-  - Momentum 12 meses
-  - RSI 14
-  - Distancia a la SMA200
+For each annual cutoff:
 
-Cada factor se transforma con `z-score` y se aplica un Winsorizing a ±3 desviaciones
-estándar para reducir el impacto de valores extremos.
+- factors are computed using only data available before the cutoff
+- technical factors are normalized by sector
+- the top quintile (Q5) is selected
+- the next 12-month return is measured
+- the Q5 performance is compared to the equal-weight universe and ^STOXX
 
-El z-score se calcula **dentro de cada sector** usando la categoría `sector` de
-`factores_score_stoxx600.csv`. Esto significa que una petrolera noruega se compara
-con otras empresas de energía, y una tecnológica alemana se compara con otras
-tecnológicas. Con esta normalización sectorial se busca aislar el mérito relativo
-intrínseco de una empresa frente a movimientos macro sectoriales.
+## What the dashboard shows
 
-Los factores con dirección negativa en valor (P/E y deuda/equity) se invierten para que
-un mayor score siempre represente condición relativa mejor.
+### Ranking section
 
-### 3. Validación del ranking
+- Loads `data/stoxx600_factor_scores.csv`
+- Supports sector and country filtering
+- Sorts companies by `score_ajustado`
+- Displays the universe table and technical factor details
+- Shows average Q5 returns across the current filtered universe
 
-El dashboard valida el ranking con varias capas:
+### Walk-forward section
 
-- Distribución de empresas por quintiles de score.
-- Retorno medio a 12 meses por quintil.
-- Métricas agregadas para top quintil vs bottom quintil.
-- Modelo de regresión logística de soporte para comparar la capacidad de clasificación.
+- Loads `data/stoxx600_prices_max.csv` and `data/stoxx600_real_index.csv`
+- Builds yearly cutoffs from 2001 through 2025
+- Computes a sector-neutral technical score using only prior data
+- Produces:
+  - cumulative equity curves for the strategy, the universe benchmark, and ^STOXX
+  - logarithmic equity curves for relative comparison
+  - annual return bars by cutoff
+  - CAGR metrics and a long-short p-value
 
-### 4. Walk-forward histórico
+## Important notes
 
-La fase más avanzada es la simulación walk-forward anual, que usa los precios diarios
-contenidos en `precios_stoxx600_max.csv` y el índice real `stoxx600_index.csv`.
+- `score_ajustado` is the dataset column used by the current CSV inputs.
+- The ranking validation chart is approximate and not a true point-in-time backtest.
+- Momentum-based factors are part of the score, so the validation reflects internal
+  consistency rather than a fully independent predictive test.
+- Many Stoxx 600 companies have incomplete factor coverage due to data limitations.
 
-Para cada corte anual:
+## Technical details
 
-- se calcula el score usando solo datos históricos hasta esa fecha
-- los factores técnicos se normalizan por sector antes de agregarse en el score
-- se selecciona el quintil superior (Q5)
-- se calcula el retorno en los siguientes 12 meses
-- se compara con el rendimiento promedio del universo y con ^STOXX real
+### Price preprocessing
 
-Al normalizar por sector, el ranking pone en primer plano a las empresas que
-realmente destacan dentro de su categoría, en lugar de premiar sectores enteros
-que se han comportado bien por razones macroeconómicas.
+`load_close_prices()` reads the multi-level CSV `data/stoxx600_prices_max.csv`
+and extracts the `Close` price series for each ticker.
 
-## Qué hace el dashboard
+### STOXX index handling
 
-### Ranking por score ajustado
+`load_stoxx_index()` reads `data/stoxx600_real_index.csv`, skips the first two rows,
+parses dates, and drops invalid entries.
 
-- Carga `factores_score_stoxx600.csv`.
-- Permite filtrar por sector y país.
-- Ordena las empresas por `score_ajustado`.
-- Muestra tablas de resultados y métricas por quintil.
-
-### Walk-forward histórico
-
-- Carga `precios_stoxx600_max.csv` y `stoxx600_index.csv`.
-- Genera cortes anuales desde 2001 hasta 2025.
-- Calcula el score con datos previos a cada corte.
-- Produce:
-  - curva de capital acumulado ($100 iniciales)
-  - curva logarítmica para analizar crecimiento relativo
-  - gráfico de retornos anuales por corte
-  - métricas CAGR y valor p long-short
-
-- Carga `precios_stoxx600_max.csv` y `stoxx600_index.csv`.
-- Genera cortes anuales desde 2001 hasta 2025.
-- Calcula el score con datos previos a cada corte.
-- Produce:
-  - curva de capital acumulado ($100 iniciales)
-  - curva logarítmica para analizar crecimiento relativo
-  - gráfico de retornos anuales por corte
-  - métricas CAGR y valor p long-short
-
-## Interpretación de resultados
-
-- Una **curva acumulada** más alta para Q5 que para el benchmark sugiere que el
-  top quintil estuvo consistentemente por delante en los cortes analizados.
-- La **curva logarítmica** hace que los cambios porcentuales similares mantengan
-  distancias visuales similares, lo que facilita comparar el comportamiento en
-  etapas distintas del tiempo.
-- Si la gráfica de **retornos anuales por corte** muestra barras muy dispersas,
-  eso indica mayor volatilidad de resultados entre años.
-- El **valor p long-short Q5-Q1** ayuda a distinguir si la diferencia de retornos
-  podría ser aleatoria. Un valor p bajo indica una señal más sólida estadísticamente.
-
-## Detalles técnicos importantes
-
-### Preprocesamiento de precios
-
-`load_close_prices()` lee un CSV de precios con encabezados de dos niveles y extrae
-la columna `Close` para cada ticker.
-
-### Manejo del índice ^STOXX
-
-`load_stoxx_index()` lee `stoxx600_index.csv` saltando las primeras dos filas del archivo,
-coerciendo la columna de fecha, y descartando filas con fechas inválidas.
-
-### Cálculo de factores en un corte
-
-`compute_factors_at_cutoff()` calcula momentum, RSI y distancia a SMA200 usando solo el
-histórico anterior al corte, respetando el principio de no mirar datos futuros.
-
-### Walk-forward anual
+### Annual cutoff simulation
 
 `simulate_walkforward()`:
 
-- construye cortes anuales con `get_annual_cutoffs()`
-- calcula scores y quintiles solo con datos anteriores al corte
-- evalúa retornos de Q5, Q1, universo y ^STOXX
-- genera curvas de capital acumulado y métricas comparativas
+- creates yearly cutoffs with `get_annual_cutoffs()`
+- computes factor z-scores by sector via `group_zscore_winsorize()`
+- assigns quintiles and evaluates returns for Q5, Q1, and the universe
+- calculates cumulative curves and summary metrics
 
-## Problemas y desafíos que resolvimos
+## Limitations
 
-### 1. Calidad y cobertura de datos
+- Historical results do not guarantee future outcomes.
+- The simulation uses a single historical path and a fixed current universe.
+- The dataset does not include point-in-time historical fundamentals.
+- The long-short Q5-Q1 result is a diagnostic, not a recommended trading strategy.
 
-- Muchos tickers del Stoxx 600 no tienen datos completos en Yahoo Finance.
-- Aproximadamente 15% de las empresas carecen de P/E usable.
-- Hay inconsistencias de ticker por clases de acciones europeas y notación local.
-
-### 2. Validación circular por momentum
-
-- El factor `momentum_12m` forma parte del score.
-- Esto significa que el análisis de quintiles muestra consistencia interna más que
-  probabilidad de predicción absoluta.
-- Lo documentamos claramente en el dashboard y en el README.
-
-### 3. Estructura compleja de CSVs de precios
-
-- `precios_stoxx600_max.csv` tiene encabezados multi-nivel.
-- `stoxx600_index.csv` no es un CSV estándar: requiere saltar filas y convertir fechas.
-- Estas necesidades se resolvieron con parsing específico en `app.py`.
-
-### 4. Presentación visual y explicación de la escala logarítmica
-
-- Añadimos texto explicativo en el dashboard para que el usuario entienda que la
-  curva logarítmica no altera resultados, solo mejora la comparabilidad relativa.
-- También mostramos unidades claras en todas las gráficas de walk-forward.
-
-## Limitaciones actuales
-
-- Los resultados son históricos y no garantizan rendimientos futuros.
-- La simulación walk-forward se basa en un solo camino histórico del mercado.
-- El dataset no incluye datos fundamentales point-in-time reales.
-- El long-short Q5-Q1 sirve como diagnóstico interno, no como estrategia final.
-
-## Walk-forward ampliado: validación del score técnico (2001-2025)
-
-### Resumen ejecutivo
-
-Se amplió la validación walk-forward original (3 cortes) a **25 cortes anuales
-no solapados (2001-2025)**, usando solo los 5 factores técnicos (momentum
-3/6/12m, RSI14, distancia a SMA200) — los fundamentales se excluyeron de
-esta fase porque yfinance no ofrece histórico point-in-time de ellos, y
-usarlos habría introducido fuga de información.
-
-**Resultado principal:** el score técnico puro **no muestra poder
-predictivo estadísticamente significativo** en ningún horizonte probado
-(3, 6 o 12 meses). Sin embargo, una simulación de cartera basada en ese
-mismo score sí bate a un benchmark equal-weight en el acumulado de 25 años
-— una aparente contradicción que se explica más abajo.
-
----
-
-### 1. De 3 a 25 cortes: por qué importa el tamaño de muestra
-
-Con solo 3 observaciones, un resultado favorable por casualidad es
-indistinguible de una señal real. Al escalar a 25 años independientes
-(fechas de corte espaciadas exactamente el horizonte de evaluación, para
-que ninguna ventana se solape con otra), esa señal aparente se diluyó
-hasta quedar dentro del rango esperable por azar.
-
-**Lección del proyecto:** una validación con pocas observaciones puede
-sugerir que un modelo "funciona" cuando en realidad el ruido de mercado
-se ha confundido con señal. Ampliar la muestra no es un paso opcional —
-es lo que separa una validación real de una ilusión estadística.
-
-### 2. Resultados por horizonte
-
-En la muestra ampliada (25 cortes) las métricas principales fueron:
-
-- 3 meses: Accuracy 49.0% (p=0.33), long-short medio anual -0.08% (p=0.96)
-- 6 meses: Accuracy 50.4% (p=0.72), long-short medio anual +0.16% (p=0.96)
-- 12 meses: Accuracy 50.8% (p=0.54), long-short medio anual +0.94% (p=0.86)
-
-Ninguno de estos resultados es estadísticamente significativo.
-
-### 3. Momentum crash de 2009
-
-El experimento de long-short (comprar Q5, vender en corto Q1 — diagnóstico de
-validación, no una estrategia recomendada) se desplomó un 82% en el corte de
-2009: las empresas más castigadas del año anterior (Q1) rebotaron con más
-fuerza que las de mejor score (Q5) en la recuperación post-crisis financiera.
-Este patrón de reversión brusca del momentum tras caídas severas está
-documentado en la literatura académica y su presencia valida que el motor
-captura dinámicas reales, aunque no suficientes para predecir con fiabilidad.
-
-### 4. Simulación de cartera: long-only Q5 vs benchmarks
-
-Estrategia propuesta: 100% larga, comprar a partes iguales el quintil top (Q5)
-cada año, rebalanceo anual. Resultados (2001-2025, $100 iniciales):
-
-- Long-only Q5: CAGR ≈ 12.8% → Capital final ≈ $2,020
-- Benchmark equal-weight: CAGR ≈ 10.9% → Capital final ≈ $1,336
-- Índice real ^STOXX (desde 2004/2005 en datos de Yahoo): CAGR ≈ 3.6% → $209
-- Experimento long-short Q5-Q1 (no recomendado): capital final ≈ $29
-
-Esta diferencia acumulada no contradice la falta de predictividad anual:
-un edge medio pequeño y no significativo puede dar lugar a grandes diferencias
-por composición a lo largo de 25 años; son preguntas distintas (fiabilidad
-anual vs camino histórico observado).
-
-### 5. Efecto tamaño y construcción de benchmark
-
-La mayor parte de la brecha entre la estrategia y el índice real se explica
-por la construcción cap-weighted del índice, que concentra peso en mega-caps.
-Un benchmark equal-weight (y la propia estrategia Q5) reparte capital
-más uniformemente y se beneficia del rebalanceo, que tiende a comprar
-relativamente companies más pequeñas que, históricamente, han rendido
-mejor a largo plazo (efecto tamaño).
-
-### 6. Sesgo de supervivencia
-
-El universo usado se construyó a partir de la composición actual (2026) con
-histórico hacia atrás; por tanto, empresas que desaparecieron en el camino
-no están incluidas en los cortes históricos. Esto infla los resultados en
-relación a un índice que sí refleja entradas y salidas históricas. Una
-comprobación parcial (2021-2025) muestra reducción de la ventaja de la
-estrategia (de +1.9 a +0.9 p.p. de CAGR), consistente con que el sesgo de
-supervivencia puede estar influyendo.
-
-### 7. Conclusión y presentación en la app
-
-El score técnico puro (momentum + RSI + distancia a SMA200) **no tiene
-poder predictivo demostrado de forma robusta**. En la app se presenta este
-resultado junto con advertencias explícitas (fuga de información potencial,
-sesgo de supervivencia, ausencia de costes de transacción) y la diferencia
-entre significancia estadística anual y efecto acumulado en el camino histórico.
-
-## Requisitos
+## Requirements
 
 - Python 3.12+
 - `streamlit`
@@ -286,42 +119,45 @@ entre significancia estadística anual y efecto acumulado en el camino históric
 - `numpy`
 - `scipy`
 
-Instala dependencias con:
+Install dependencies with:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Cómo ejecutar
+## Run the dashboard
+
+From the repository root:
 
 ```bash
-streamlit run src/app.py
+streamlit run app.py
 ```
 
-## Estructura del repositorio
+## Repository structure
 
-- `src/` — código Python de la aplicación.
-  - `src/app.py` — aplicación principal de Streamlit.
-  - `src/analytics.py` — funciones para calcular retornos por quintil.
-  - `src/data_loader.py` — carga de datos y utilidades de lectura.
-  - `src/inspect_csv.py` — script auxiliar para inspeccionar archivos CSV.
-- `data/` — datasets del proyecto.
-  - `data/factores_score_stoxx600.csv` — dataset con factores y score.
-  - `data/precios_stoxx600_max.csv` — precios diarios para la simulación walk-forward.
-  - `data/stoxx600_index.csv` — benchmark real ^STOXX.
-  - `data/precios_stoxx600.csv` — precios adicionales de historial.
-  - `data/tecnicos_stoxx600.csv` — factores técnicos para el universo.
-  - `data/fundamentales_stoxx600.csv` — factores fundamentales del universo.
+- `app.py` — root wrapper that launches `src/app.py`
+- `src/` — Python application code
+  - `src/app.py` — main Streamlit dashboard
+  - `src/analytics.py` — quintile return helper
+  - `src/data_loader.py` — CSV loading utility
+  - `src/inspect_csv.py` — helper for inspecting CSV files
+- `data/` — project datasets
+  - `data/stoxx600_factor_scores.csv`
+  - `data/stoxx600_prices_max.csv`
+  - `data/stoxx600_real_index.csv`
+  - `data/stoxx600_prices.csv`
+  - `data/stoxx600_technical.csv`
+  - `data/stoxx600_fundamentals.csv`
 
-## Posibles mejoras futuras
+## Future improvements
 
-- Conseguir datos fundamentales point-in-time para un backtest walk-forward real.
-- Añadir más modelos predictivos: random forest, gradient boosting, redes neuronales.
-- Incluir métricas de riesgo adicionales: drawdown por periodo, beta, correlación con mercado.
-- Automatizar descarga y actualización de datos con GitHub Actions.
-- Separar un factor de calidad independiente de momentum y valoración.
+- Capture point-in-time fundamentals for a true backtest.
+- Add alternative signal models such as random forest and gradient boosting.
+- Include additional risk metrics: drawdown, beta, and correlation.
+- Automate dataset refresh using GitHub Actions.
+- Separate valuation and momentum signals more clearly.
 
----
+## Notes
 
-*Proyecto desarrollado como ejercicio práctico de finanzas cuantitativas, ingeniería de datos
-y visualización de resultados para el universo Stoxx 600.*
+This project is a quantitative finance exercise for the Stoxx Europe 600 universe.
+It is not investment advice.
