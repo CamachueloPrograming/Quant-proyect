@@ -216,8 +216,8 @@ def simulate_walkforward(
     )
 
     n_years = len(df_res)
-    cagr_estrategia = (equity_estrategia[-1] / 100) ** (1 / n_years) - 1
-    cagr_bench = (equity_bench[-1] / 100) ** (1 / n_years) - 1
+    cagr_estrategia = (equity_strategy[-1] / 100) ** (1 / n_years) - 1
+    cagr_bench = (equity_benchmark[-1] / 100) ** (1 / n_years) - 1
     cagr_stoxx600 = (
         (equity_stoxx600[-1] / 100) ** (1 / (len(df_res) - primer_valido)) - 1
         if primer_valido is not None
