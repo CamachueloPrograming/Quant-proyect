@@ -5,7 +5,7 @@ This repository contains a Streamlit dashboard for quantitative analysis of the
 framework, validate the ranking by quintile, and support the process with an
 annual walk-forward simulation.
 
-// https://quant-proyect.streamlit.app
+https://quant-proyect.streamlit.app
 
 The app uses local datasets to:
 
