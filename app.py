@@ -47,6 +47,36 @@ def zscore_winsorize(s: pd.Series, cap: float = 3.0) -> pd.Series:
     return ((s - mu) / sd).clip(-cap, cap)
 
 
+def group_zscore_winsorize(factors: pd.DataFrame, sector_map: pd.Series | None = None, cap: float = 3.0) -> pd.DataFrame:
+    """Compute z-scores within each sector group.
+
+    If sector_map is provided, each company is compared only against its sector
+    peers. If no sector map is available, fallback to universe-level z-scores.
+    """
+    if sector_map is None:
+        return factors.apply(zscore_winsorize)
+
+    sector_series = sector_map.reindex(factors.index).fillna("Unknown")
+    z_groups = []
+    for _, group in factors.groupby(sector_series, sort=False):
+        z_groups.append(group.apply(zscore_winsorize))
+
+    if z_groups:
+        return pd.concat(z_groups).reindex(factors.index)
+    return factors.apply(zscore_winsorize)
+
+
+@st.cache_data
+def load_sector_map(path: str = "factores_score_stoxx600.csv") -> pd.Series:
+    """Load ticker-to-sector mapping for sector-level normalization."""
+    try:
+        metadata = pd.read_csv(path, usecols=["yahoo_ticker", "sector"], dtype={"yahoo_ticker": str, "sector": str})
+        metadata = metadata.dropna(subset=["yahoo_ticker"])
+        return metadata.set_index("yahoo_ticker")["sector"]
+    except Exception:
+        return pd.Series(dtype="object")
+
+
 def compute_factors_at_cutoff(df: pd.DataFrame, cutoff_pos: int, min_history: int = 252) -> pd.DataFrame:
     window_raw = df.iloc[:cutoff_pos + 1]
     window = window_raw.ffill()
@@ -99,7 +129,11 @@ def simulate_walkforward(
     idx = close.index
     cutoffs = get_annual_cutoffs(idx, start_year, end_year)
     results = []
+    sector_map = load_sector_map()
 
+    # En el walk-forward, el score técnico usa z-scores calculados por sector.
+    # Esto evita que el ranking premie sectores enteros con buen momentum en lugar
+    # de empresas destacadas dentro de cada sector.
     for cutoff in cutoffs:
         cpos = idx.get_loc(cutoff)
         fpos = cpos + horizon
@@ -110,7 +144,7 @@ def simulate_walkforward(
         if len(factors) < 50:
             continue
 
-        z = factors.apply(zscore_winsorize)
+        z = group_zscore_winsorize(factors, sector_map=sector_map)
         score = z.mean(axis=1)
 
         p0 = close.iloc[: cpos + 1].ffill().iloc[-1][score.index]

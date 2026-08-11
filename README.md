@@ -50,6 +50,12 @@ El `score_ajustado` está construido a partir de 9 factores:
 Cada factor se transforma con `z-score` y se aplica un Winsorizing a ±3 desviaciones
 estándar para reducir el impacto de valores extremos.
 
+El z-score se calcula **dentro de cada sector** usando la categoría `sector` de
+`factores_score_stoxx600.csv`. Esto significa que una petrolera noruega se compara
+con otras empresas de energía, y una tecnológica alemana se compara con otras
+tecnológicas. Con esta normalización sectorial se busca aislar el mérito relativo
+intrínseco de una empresa frente a movimientos macro sectoriales.
+
 Los factores con dirección negativa en valor (P/E y deuda/equity) se invierten para que
 un mayor score siempre represente condición relativa mejor.
 
@@ -77,9 +83,14 @@ contenidos en `precios_stoxx600_max.csv` y el índice real `stoxx600_index.csv`.
 Para cada corte anual:
 
 - se calcula el score usando solo datos históricos hasta esa fecha
+- los factores técnicos se normalizan por sector antes de agregarse en el score
 - se selecciona el quintil superior (Q5)
 - se calcula el retorno en los siguientes 12 meses
 - se compara con el rendimiento promedio del universo y con ^STOXX real
+
+Al normalizar por sector, el ranking pone en primer plano a las empresas que
+realmente destacan dentro de su categoría, en lugar de premiar sectores enteros
+que se han comportado bien por razones macroeconómicas.
 
 ## Qué hace el dashboard
 
