@@ -67,7 +67,7 @@ def group_zscore_winsorize(factors: pd.DataFrame, sector_map: pd.Series | None =
 
 
 @st.cache_data
-def load_sector_map(path: str = "factores_score_stoxx600.csv") -> pd.Series:
+def load_sector_map(path: str = "data/factores_score_stoxx600.csv") -> pd.Series:
     """Load ticker-to-sector mapping for sector-level normalization."""
     try:
         metadata = pd.read_csv(path, usecols=["yahoo_ticker", "sector"], dtype={"yahoo_ticker": str, "sector": str})
@@ -255,7 +255,7 @@ with st.expander("Metodología"):
 
 st.markdown("Vista interactiva del ranking de empresas por score ajustado.")
 
-csv_path = "factores_score_stoxx600.csv"
+csv_path = "data/factores_score_stoxx600.csv"
 
 try:
     df = load_data(csv_path)
@@ -380,8 +380,8 @@ st.write(
     "comparándolo contra el universo equal-weight y el índice real ^STOXX."
 )
 
-price_path = Path("precios_stoxx600_max.csv")
-index_path = Path("stoxx600_index.csv")
+price_path = Path("data/precios_stoxx600_max.csv")
+index_path = Path("data/stoxx600_index.csv")
 
 if price_path.exists():
     try:

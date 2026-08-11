@@ -295,19 +295,23 @@ pip install -r requirements.txt
 ## Cómo ejecutar
 
 ```bash
-streamlit run app.py
+streamlit run src/app.py
 ```
 
 ## Estructura del repositorio
 
-- `app.py` — aplicación principal de Streamlit.
-- `requirements.txt` — dependencias.
-- `factores_score_stoxx600.csv` — dataset con factores y score.
-- `precios_stoxx600_max.csv` — precios diarios para la simulación walk-forward.
-- `stoxx600_index.csv` — benchmark real ^STOXX.
-- `analytics.py` — funciones para calcular retornos por quintil.
-- `data_loader.py` — carga de datos y utilidades de lectura.
-- `inspect_csv.py` — script auxiliar para inspeccionar archivos CSV.
+- `src/` — código Python de la aplicación.
+  - `src/app.py` — aplicación principal de Streamlit.
+  - `src/analytics.py` — funciones para calcular retornos por quintil.
+  - `src/data_loader.py` — carga de datos y utilidades de lectura.
+  - `src/inspect_csv.py` — script auxiliar para inspeccionar archivos CSV.
+- `data/` — datasets del proyecto.
+  - `data/factores_score_stoxx600.csv` — dataset con factores y score.
+  - `data/precios_stoxx600_max.csv` — precios diarios para la simulación walk-forward.
+  - `data/stoxx600_index.csv` — benchmark real ^STOXX.
+  - `data/precios_stoxx600.csv` — precios adicionales de historial.
+  - `data/tecnicos_stoxx600.csv` — factores técnicos para el universo.
+  - `data/fundamentales_stoxx600.csv` — factores fundamentales del universo.
 
 ## Posibles mejoras futuras
 
