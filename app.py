@@ -334,41 +334,6 @@ else:
     st.info("No hay datos disponibles para generar el gráfico de retorno por quintil.")
 
 st.markdown("---")
-st.subheader("Simulación de cartera: Top vs Bottom vs Benchmark")
-st.write(
-    "Simulación de una cartera equiponderada del 20% de empresas con mejor score vs el 20% peor vs el universo completo (Stoxx 600), durante los últimos 12 meses. "
-    "Nota: como el score incluye momentum de 12 meses como factor, este resultado refleja consistencia interna del modelo más que capacidad predictiva real."
-)
-
-try:
-    curvas = pd.read_csv("curvas_rendimiento.csv")
-    metricas = pd.read_csv("metricas_rendimiento.csv")
-except FileNotFoundError:
-    st.warning("No se encontraron los archivos de rendimiento para la simulación de cartera.")
-    st.stop()
-
-curvas["Ticker"] = pd.to_datetime(curvas["Ticker"], format="%Y-%m-%d")
-curvas = curvas.set_index("Ticker")
-
-line_chart_data = curvas[["top_quintil", "bottom_quintil", "benchmark_600"]].copy()
-line_chart_data = line_chart_data * 100.0
-st.line_chart(line_chart_data, use_container_width=True)
-
-metricas_display = metricas.copy()
-metricas_display["retorno_total"] = (metricas_display["retorno_total"] * 100).round(1)
-metricas_display["volatilidad_anual"] = (metricas_display["volatilidad_anual"] * 100).round(1)
-metricas_display["sharpe_ratio"] = metricas_display["sharpe_ratio"].round(1)
-metricas_display["max_drawdown"] = (metricas_display["max_drawdown"] * 100).round(1)
-metricas_display = metricas_display.rename(columns={
-    "retorno_total": "Retorno total (%)",
-    "volatilidad_anual": "Volatilidad anual (%)",
-    "sharpe_ratio": "Sharpe ratio",
-    "max_drawdown": "Max drawdown (%)",
-})
-
-st.dataframe(metricas_display, use_container_width=True, hide_index=True)
-
-st.markdown("---")
 st.subheader("Walk-forward histórico 2001-2025: estrategia top quintil vs benchmarks")
 st.write(
     "Esta sección del dashboard tiene dos partes claramente diferenciadas:\n"

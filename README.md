@@ -64,16 +64,10 @@ El dashboard valida el ranking con varias capas:
 
 ### 4. Simulación de cartera reciente
 
-Se incorporó una sección adicional que usa los archivos:
-
-- `curvas_rendimiento.csv`
-- `metricas_rendimiento.csv`
-
-Esta sección compara de forma directa:
-
-- cartera long-only del top quintil
-- cartera del bottom quintil
-- universo equal-weight
+Se incorporó una sección adicional para comparar el top quintil, el bottom quintil
+y el universo equal-weight en métricas de rendimiento histórico, pero esta
+validación fue eliminada de la app para evitar una evaluación circular basada en
+momentum y datos fundamentales snapshot del periodo ya transcurrido.
 
 ### 5. Walk-forward histórico
 
@@ -303,8 +297,6 @@ streamlit run app.py
 - `app.py` — aplicación principal de Streamlit.
 - `requirements.txt` — dependencias.
 - `factores_score_stoxx600.csv` — dataset con factores y score.
-- `curvas_rendimiento.csv` — curvas de rendimiento del top/bottom y benchmark.
-- `metricas_rendimiento.csv` — métricas de rendimiento resumidas.
 - `precios_stoxx600_max.csv` — precios diarios para la simulación walk-forward.
 - `stoxx600_index.csv` — benchmark real ^STOXX.
 - `analytics.py` — funciones para calcular retornos por quintil.
