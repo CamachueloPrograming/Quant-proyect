@@ -386,16 +386,16 @@ if price_path.exists():
     try:
         close = load_close_prices(str(price_path))
         stoxx600_index = load_stoxx_index(str(index_path)) if index_path.exists() else pd.Series(dtype="float64")
-        df_walk, curva_walk, walk_metrics = simulate_walkforward(close, stoxx600_index)
+        df_walk, curve_walk, walk_metrics = simulate_walkforward(close, stoxx600_index)
     except Exception as exc:
         st.error(f"Could not run walk-forward simulation: {exc}")
         df_walk = pd.DataFrame()
-        curva_walk = pd.DataFrame()
+        curve_walk = pd.DataFrame()
         walk_metrics = {}
 else:
     st.warning("The price history file for walk-forward was not found: data/stoxx600_prices_max.csv")
     df_walk = pd.DataFrame()
-    curva_walk = pd.DataFrame()
+    curve_walk = pd.DataFrame()
     walk_metrics = {}
 
 if not df_walk.empty:
@@ -417,7 +417,7 @@ if not df_walk.empty:
         "Unit: relative capital ($100 starting value). "
         "Each series shows how $100 would evolve under the strategy, the equal-weight benchmark, and the real ^STOXX index."
     )
-    curve_display = curva_walk.set_index("date")[
+    curve_display = curve_walk.set_index("date")[
         ["strategy_long_only_Q5", "benchmark_universe_equalweight", "benchmark_stoxx600_real", "long_short_experiment"]
     ]
     st.line_chart(curve_display, use_container_width=True)
@@ -439,13 +439,13 @@ if not df_walk.empty:
         "Unit: annual percentage (%). Each bar shows the 12-month return from each annual cutoff for the top quintile, the bottom quintile, the equal-weight universe, the real ^STOXX index, and the long-short difference."
     )
     returns_display = df_walk.set_index("cutoff")[
-        ["q5_ret", "q1_ret", "universo_ret_medio", "stoxx600_ret", "long_short"]
+        ["q5_ret", "q1_ret", "universe_avg_ret", "stoxx600_ret", "long_short"]
     ].copy()
     returns_display = returns_display.rename(
         columns={
             "q5_ret": "Q5",
             "q1_ret": "Q1",
-            "universo_ret_medio": "Universe",
+            "universe_avg_ret": "Universe",
             "stoxx600_ret": "^STOXX",
             "long_short": "Q5 - Q1",
         }
