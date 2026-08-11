@@ -27,7 +27,6 @@ La fase inicial consistió en reunir los datos necesarios para el universo Stoxx
 - Factores técnicos y fundamentales por empresa.
 - Precios históricos diarios para el universo completo.
 - Histórico del índice real `^STOXX`.
-- Curvas de rendimiento y métricas resumen para comparación rápida.
 
 Los datos se normalizaron y se exportaron a CSVs que el dashboard consume directamente.
 
@@ -68,14 +67,7 @@ El dashboard valida el ranking con varias capas:
 - Métricas agregadas para top quintil vs bottom quintil.
 - Modelo de regresión logística de soporte para comparar la capacidad de clasificación.
 
-### 4. Simulación de cartera reciente
-
-Se incorporó una sección adicional para comparar el top quintil, el bottom quintil
-y el universo equal-weight en métricas de rendimiento histórico, pero esta
-validación fue eliminada de la app para evitar una evaluación circular basada en
-momentum y datos fundamentales snapshot del periodo ya transcurrido.
-
-### 5. Walk-forward histórico
+### 4. Walk-forward histórico
 
 La fase más avanzada es la simulación walk-forward anual, que usa los precios diarios
 contenidos en `precios_stoxx600_max.csv` y el índice real `stoxx600_index.csv`.
@@ -101,13 +93,16 @@ que se han comportado bien por razones macroeconómicas.
 - Ordena las empresas por `score_ajustado`.
 - Muestra tablas de resultados y métricas por quintil.
 
-### Simulación reciente de cartera
-
-- Carga `curvas_rendimiento.csv` y `metricas_rendimiento.csv`.
-- Muestra una gráfica de rendimiento para top, bottom y benchmark.
-- Presenta una tabla con métricas clave: retorno total, volatilidad, Sharpe y drawdown.
-
 ### Walk-forward histórico
+
+- Carga `precios_stoxx600_max.csv` y `stoxx600_index.csv`.
+- Genera cortes anuales desde 2001 hasta 2025.
+- Calcula el score con datos previos a cada corte.
+- Produce:
+  - curva de capital acumulado ($100 iniciales)
+  - curva logarítmica para analizar crecimiento relativo
+  - gráfico de retornos anuales por corte
+  - métricas CAGR y valor p long-short
 
 - Carga `precios_stoxx600_max.csv` y `stoxx600_index.csv`.
 - Genera cortes anuales desde 2001 hasta 2025.
