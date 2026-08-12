@@ -242,9 +242,9 @@ def simulate_walkforward(
 
     return df_res, curve, metrics
 
-st.set_page_config(page_title="Sector-Neutral Stoxx Europe 600 Screener", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Stoxx 600 Quant Screener", layout="wide", page_icon="📊")
 
-st.title("Sector-Neutral Stoxx Europe 600 Screener")
+st.title("Stoxx 600 Quant Screener")
 with st.expander("Methodology"):
     st.write(
         "The `score_ajustado` combines 9 technical and fundamental factors normalized by z-score. "
