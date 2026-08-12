@@ -1,11 +1,11 @@
-﻿# Sector-Neutral Stoxx Europe 600 Screener
+﻿# Stoxx 600 Quant Screener
 
 This repository contains a Streamlit dashboard for quantitative analysis of the
 **Stoxx Europe 600** universe. It is designed to show a sector-neutral ranking
 framework, validate the ranking by quintile, and support the process with an
 annual walk-forward simulation.
 
-https://quant-proyect.streamlit.app
+[https://quant-proyect.streamlit.app](https://stoxx600-quant-screener.streamlit.app)
 
 The app uses local datasets to:
 
