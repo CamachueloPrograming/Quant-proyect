@@ -331,6 +331,18 @@ else:
 st.markdown("---")
 st.subheader("Adjusted score ranking")
 
+st.info(
+    "Esta tabla ordena el universo Stoxx 600 según un score multi-factor "
+    "(técnico + fundamental), calculado con los datos más recientes disponibles. "
+    "Su objetivo es servir como punto de partida para investigación — una forma "
+    "sistemática de reducir 599 empresas a un subconjunto manejable para analizar "
+    "en más profundidad — no como una predicción de rendimiento futuro. La validación "
+    "histórica del componente técnico (ver sección de walk-forward más abajo) se hizo "
+    "con 25 años de datos y no encontró evidencia de que este tipo de score prediga de "
+    "forma fiable qué empresas rendirán mejor. Los factores fundamentales no pudieron "
+    "validarse de la misma forma por falta de histórico point-in-time suficiente."
+)
+
 if not filtered.empty:
     display_df = filtered.copy()
     if "nombre" not in display_df.columns and "yahoo_ticker" in display_df.columns:
@@ -359,13 +371,7 @@ if not filtered.empty:
 else:
     st.info("No data available to display the table.")
 
-if not filtered.empty and "momentum_12m" in filtered.columns:
-    quintile_summary = build_quintile_returns(filtered)
-    st.subheader("Score quintile returns")
-    st.bar_chart(
-        quintile_summary.set_index("quintile")["avg_return_12m"],
-        use_container_width=True,
-    )
+# Removed: Score quintile returns chart (circular validation using current adjusted_score)
 
 st.subheader("Historic walk-forward 2001-2025: top quintile strategy vs benchmarks")
 st.write(

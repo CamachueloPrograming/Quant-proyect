@@ -66,6 +66,10 @@ For each annual cutoff:
 - Displays the universe table and technical factor details
 - Shows average Q5 returns across the current filtered universe
 
+Note on the ranking table
+-------------------------
+This table orders the Stoxx 600 universe by a multi-factor score (technical + fundamental) computed using the most recent available data. Its purpose is to support research and screening — a systematic way to reduce the full universe to a manageable shortlist for further qualitative and due-diligence work — not to serve as a prediction of future returns. The historical validation of the technical component is described in the walk-forward section (2001–2025) and, when expanded, did not provide robust statistical evidence of predictive power. Additionally, point-in-time historical fundamental data is not available in this dataset, so fundamentals could not be validated in the same way.
+
 ### Walk-forward section
 
 - Loads `data/stoxx600_prices_max.csv` and `data/stoxx600_real_index.csv`
