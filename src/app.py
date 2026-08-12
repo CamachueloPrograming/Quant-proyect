@@ -245,12 +245,11 @@ def simulate_walkforward(
 st.set_page_config(page_title="Stoxx 600 Quant Screener", layout="wide", page_icon="📊")
 
 st.title("Stoxx 600 Quant Screener")
-with st.expander("Methodology"):
+with st.expander("About"):
     st.write(
-        "The `score_ajustado` combines 9 technical and fundamental factors normalized by z-score. "
-        "The quintile chart is an approximate validation and not a point-in-time backtest, "
-        "because `momentum_12m` is one of the factors used in the score. "
-        "Around 90 companies have at least one incomplete factor due to free Yahoo Finance data limitations."
+        "Stoxx 600 Quant Screener is an exploratory dashboard that ranks Stoxx Europe 600 companies using a multi-factor score (technical + fundamental). "
+        "It is intended as a research and screening tool to generate manageable candidate lists for further qualitative analysis and due diligence, not as a trading signal. "
+        "The app includes an annual walk-forward simulation (2001–2025) to evaluate historical behavior of the technical score; see the Walk-forward section for the validation results."
     )
 
 st.markdown("Interactive ranking view for companies by adjusted score.")
@@ -332,15 +331,10 @@ st.markdown("---")
 st.subheader("Adjusted score ranking")
 
 st.info(
-    "Esta tabla ordena el universo Stoxx 600 según un score multi-factor "
-    "(técnico + fundamental), calculado con los datos más recientes disponibles. "
-    "Su objetivo es servir como punto de partida para investigación — una forma "
-    "sistemática de reducir 599 empresas a un subconjunto manejable para analizar "
-    "en más profundidad — no como una predicción de rendimiento futuro. La validación "
-    "histórica del componente técnico (ver sección de walk-forward más abajo) se hizo "
-    "con 25 años de datos y no encontró evidencia de que este tipo de score prediga de "
-    "forma fiable qué empresas rendirán mejor. Los factores fundamentales no pudieron "
-    "validarse de la misma forma por falta de histórico point-in-time suficiente."
+    "This table orders the Stoxx 600 universe by a multi-factor score (technical + fundamental), computed with the most recent available data. "
+    "Its purpose is to serve as a starting point for research — a systematic way to reduce 599 companies to a manageable subset for deeper analysis — not as a prediction of future performance. "
+    "The historical validation of the technical component (see the Walk-forward section below) used 25 years of data and did not find robust evidence that this score reliably predicts future outperformance. "
+    "Fundamental factors could not be validated the same way due to lack of point-in-time historical coverage."
 )
 
 if not filtered.empty:
